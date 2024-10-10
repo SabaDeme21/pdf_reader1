@@ -1,0 +1,37 @@
+import pdfplumber
+import pandas as pd
+
+pdf_path = r""C:\Users\User\Desktop\spyder\HASU4660170.PDF""
+
+csv_path = r"C:/Users/User/Desktop/extracted_invoice_info2.csv"
+
+# Initialize a dictionary to store extracted data
+with pdfplumber.open(pdf_path) as pdf:
+    page = pdf.pages[0]
+    text = page.extract_text().split('\n')
+    
+print(text)
+    
+invoice_date = text[7][text[7].find("O"):]
+#print(invoice_date)
+
+invoice_number = str(text[5][text[5].find("Invoice Number")+15:])
+
+#print(invoice_number)
+
+#print(text[21][-6:-1])
+terminal_net_amount = text[21][-6:-1]
+
+total_amount = text[25][text[25].find("USD")+4:]
+
+port_amount = text[22][-6:-1]
+
+container = text[29][2:14]
+
+company = text[45][len("Service provider")+1:text[45].find('as')]
+#print(company)
+if terminal_net_amount > port_amount:
+    df = pd.DataFrame([[invoice_date, invoice_number, terminal_net_amount, port_amount[1:], total_amount, container, company]], columns=['Invoice Date', 'Invoice Number', 'Net Amount', 'Port Amount', 'Total Net Amount', 'Container No', 'Company'])
+else:
+    df = pd.DataFrame([[invoice_date, invoice_number, port_amount, terminal_net_amount, total_amount, container, company]], columns=['Invoice Date', 'Invoice Number', 'Net Amount', 'Port Amount', 'Total Net Amount', 'Container No', 'Company'])
+df.to_csv(csv_path, index=False)
