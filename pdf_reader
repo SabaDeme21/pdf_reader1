@@ -1,37 +1,66 @@
 import pdfplumber
 import pandas as pd
+import os
+import re
 
-pdf_path = r""C:\Users\User\Desktop\spyder\HASU4660170.PDF""
+# Path to your PDF folder
+folder_path = r"C:\Users\User\Downloads\Fwd__Re__დღევანდელი_მაერსკები\Fwd_ Re_ დღევანდელი მაერსკები"
+#folder_path = r"C:\Users\User\Desktop\17.10.2024\MRKU6402335.PDF"
 
-csv_path = r"C:/Users/User/Desktop/extracted_invoice_info2.csv"
+pdf_files = [os.path.join(folder_path, file) for file in os.listdir(folder_path) if file.endswith(('.PDF', '.pdf'))]
 
-# Initialize a dictionary to store extracted data
-with pdfplumber.open(pdf_path) as pdf:
-    page = pdf.pages[0]
-    text = page.extract_text().split('\n')
-    
-print(text)
-    
-invoice_date = text[7][text[7].find("O"):]
-#print(invoice_date)
+# Path to save the CSV file
+csv_path = r"C:/Users/User/Desktop/Invoices.csv"
 
-invoice_number = str(text[5][text[5].find("Invoice Number")+15:])
+# Initialize a list to store extracted data
+all_data = []
 
-#print(invoice_number)
+# Loop through each PDF file
+for pdf_file in pdf_files:
+    with pdfplumber.open(pdf_file) as pdf:
+        page = pdf.pages[0]
+        text = page.extract_text().split("\n")
+        full_text = page.extract_text()
+        print(text)
+                
+        # Debugging: Print the entire extracted text
+        print(f"Extracted text from {pdf_file}:\n{text}\n")
+            
+        # Add error handling and check if text lines are long enough
+        # Extract data based on expected format (adjust these indices if needed)
+        invoice_date_pattern = r"Invoice Date (\w{3} \d{1,2}, \d{4})"
+        invoice_date = re.search(invoice_date_pattern, full_text).group(1)
+        invoice_number_pattern = r"Invoice Number (\d+)"
+        invoice_number = re.search(invoice_number_pattern, full_text).group(1)
+        terminal_net_amount = text[21][-6:]
+        terminal_net_amount_description = text[21][:text[21].find('1')-1]
+        total_amount = text[25][text[25].find("USD")+4:]
+        port_amount_description = text[22][:text[22].find('1')-1]
+        port_amount = text[22][-6:]
+        container_pattern = r"\b[A-Z]{4}\d{7}\b"
+        container = re.search(container_pattern, full_text).group()
+        company = text[45][len("Service provider")+1:text[45].find('as')]
+        # Add extracted data to the list
+        
+        if port_amount_description == "Container Protect Essential":
+            terminal_description = text[23][:text[23].find('1')-1]
+            terminal_amount_1 = text[23][-6:]
+            cont = text[30][2:14]
+            all_data.append([invoice_date, invoice_number, terminal_net_amount_description, terminal_net_amount, cont, company])
+            all_data.append([invoice_date, invoice_number, port_amount_description, port_amount, cont, company])
+            all_data.append([invoice_date, invoice_number, terminal_description, terminal_amount_1, cont, company])
+        else:
+            all_data.append([invoice_date, invoice_number, terminal_net_amount_description, terminal_net_amount, container, company])
+            all_data.append([invoice_date, invoice_number, port_amount_description, port_amount, container, company])
+            
 
-#print(text[21][-6:-1])
-terminal_net_amount = text[21][-6:-1]
+df = pd.DataFrame(all_data, columns=['Invoice Date', 'Invoice Number', 'Description', 'Amount', 'Container No', 'Company'])
 
-total_amount = text[25][text[25].find("USD")+4:]
+#df.to_csv("C:/Users/User/Desktop/Do.csv", index=False)
 
-port_amount = text[22][-6:-1]
-
-container = text[29][2:14]
-
-company = text[45][len("Service provider")+1:text[45].find('as')]
-#print(company)
-if terminal_net_amount > port_amount:
-    df = pd.DataFrame([[invoice_date, invoice_number, terminal_net_amount, port_amount[1:], total_amount, container, company]], columns=['Invoice Date', 'Invoice Number', 'Net Amount', 'Port Amount', 'Total Net Amount', 'Container No', 'Company'])
+if not df.empty:
+    #Write the DataFrame to CSV
+    df.to_csv(csv_path, index=False)
+    print(f"Data extracted and saved to {csv_path}")
 else:
-    df = pd.DataFrame([[invoice_date, invoice_number, port_amount, terminal_net_amount, total_amount, container, company]], columns=['Invoice Date', 'Invoice Number', 'Net Amount', 'Port Amount', 'Total Net Amount', 'Container No', 'Company'])
-df.to_csv(csv_path, index=False)
+    print("No data extracted from PDFs.")
